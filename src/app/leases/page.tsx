@@ -2,10 +2,15 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { DeleteButton } from "@/components/delete-button";
+import { SearchBox } from "@/components/search-box";
+import { Pagination } from "@/components/pagination";
 import { deleteLease } from "./actions";
 import { formatDate, formatMoney } from "@/lib/format";
+import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
+
+const PAGE_SIZE = 20;
 
 const STATUS_STYLES: Record<string, string> = {
   ACTIVE: "bg-blue-50 text-blue-700",
@@ -13,20 +18,46 @@ const STATUS_STYLES: Record<string, string> = {
   TERMINATED: "bg-red-50 text-red-700"
 };
 
-export default async function LeasesPage() {
-  const leases = await db.lease.findMany({
-    include: { property: { select: { name: true, country: true } } },
-    orderBy: { startDate: "desc" }
-  });
+export default async function LeasesPage({
+  searchParams
+}: {
+  searchParams: Promise<{ q?: string; page?: string }>;
+}) {
+  const { q, page: pageParam } = await searchParams;
+  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+
+  const where: Prisma.LeaseWhereInput = q
+    ? {
+        OR: [
+          { tenantName: { contains: q, mode: "insensitive" } },
+          { property: { name: { contains: q, mode: "insensitive" } } },
+          { property: { country: { contains: q, mode: "insensitive" } } }
+        ]
+      }
+    : {};
+
+  const [leases, total] = await Promise.all([
+    db.lease.findMany({
+      where,
+      include: { property: { select: { name: true, country: true } } },
+      orderBy: { startDate: "desc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE
+    }),
+    db.lease.count({ where })
+  ]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <PageHeader title="Leases & rent" subtitle={`${leases.length} leases`} />
+        <PageHeader title="Leases & rent" subtitle={`${total} leases`} />
         <Link href="/leases/new" className="rounded-lg bg-brand-950 px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
           Add lease
         </Link>
       </div>
+
+      <SearchBox action="/leases" defaultValue={q} placeholder="Search by tenant, property, or country..." />
 
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
@@ -70,12 +101,13 @@ export default async function LeasesPage() {
             {leases.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-[var(--text-muted)]">
-                  No leases yet.
+                  {q ? `No leases match "${q}".` : "No leases yet."}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+        <Pagination page={page} totalPages={totalPages} basePath="/leases" q={q} />
       </div>
     </div>
   );

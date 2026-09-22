@@ -2,18 +2,49 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { DeleteButton } from "@/components/delete-button";
+import { SearchBox } from "@/components/search-box";
+import { Pagination } from "@/components/pagination";
 import { deleteProperty } from "./actions";
 import { formatMoney } from "@/lib/format";
+import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
-export default async function PropertiesPage() {
-  const properties = await db.property.findMany({ orderBy: { createdAt: "desc" } });
+const PAGE_SIZE = 20;
+
+export default async function PropertiesPage({
+  searchParams
+}: {
+  searchParams: Promise<{ q?: string; page?: string }>;
+}) {
+  const { q, page: pageParam } = await searchParams;
+  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+
+  const where: Prisma.PropertyWhereInput = q
+    ? {
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { country: { contains: q, mode: "insensitive" } },
+          { city: { contains: q, mode: "insensitive" } }
+        ]
+      }
+    : {};
+
+  const [properties, total] = await Promise.all([
+    db.property.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE
+    }),
+    db.property.count({ where })
+  ]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <PageHeader title="Properties" subtitle={`${properties.length} properties across your portfolio`} />
+        <PageHeader title="Properties" subtitle={`${total} properties across your portfolio`} />
         <Link
           href="/properties/new"
           className="rounded-lg bg-brand-950 px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
@@ -21,6 +52,8 @@ export default async function PropertiesPage() {
           Add property
         </Link>
       </div>
+
+      <SearchBox action="/properties" defaultValue={q} placeholder="Search by name, city, or country..." />
 
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
@@ -61,12 +94,13 @@ export default async function PropertiesPage() {
             {properties.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-[var(--text-muted)]">
-                  No properties yet. Add your first one.
+                  {q ? `No properties match "${q}".` : "No properties yet. Add your first one."}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+        <Pagination page={page} totalPages={totalPages} basePath="/properties" q={q} />
       </div>
     </div>
   );

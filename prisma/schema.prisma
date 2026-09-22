@@ -96,6 +96,11 @@ model Property {
   purchaseDate  DateTime?
   currentValue  Float?
   currency      String         @default("USD")
+  areaSqm       Float?
+  // Manual overrides for the 5-year forecast. When null, the forecast falls
+  // back to a CAGR computed from purchasePrice -> currentValue.
+  appreciationRateOverride Float?
+  rentGrowthRateOverride   Float?
   notes         String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -105,9 +110,30 @@ model Property {
   maintenanceVisits  MaintenanceVisit[]
   sales              Sale[]
   fees               Fee[]
+  comparables        Comparable[]
 
   @@index([country])
   @@index([status])
+}
+
+model Comparable {
+  id         String    @id @default(cuid())
+  propertyId String
+  addressLine String
+  city        String
+  country     String
+  areaSqm     Float
+  salePrice   Float?
+  monthlyRent Float?
+  currency    String    @default("USD")
+  observedDate DateTime?
+  source      String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
 }
 
 model Lease {

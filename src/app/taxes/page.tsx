@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { DeleteButton } from "@/components/delete-button";
+import { PropertyCombobox } from "@/components/property-combobox";
 import { formatDate, formatMoney } from "@/lib/format";
 import { createTax, deleteTax, markTaxPaid, createFee, deleteFee, markFeePaid } from "./actions";
 
@@ -32,16 +33,9 @@ export default async function TaxesPage() {
       <section className="card p-5">
         <h2 className="mb-3 text-sm font-semibold text-[var(--text)]">Property taxes</h2>
         <form action={createTax} className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-7">
-          <select name="propertyId" required defaultValue="" className="input col-span-2">
-            <option value="" disabled>
-              Property
-            </option>
-            {properties.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} — {p.country}
-              </option>
-            ))}
-          </select>
+          <div className="col-span-2">
+            <PropertyCombobox name="propertyId" properties={properties} required placeholder="Property" />
+          </div>
           <input name="taxType" required placeholder="Tax type" className="input" />
           <input name="country" required placeholder="Country" className="input" />
           <input type="number" name="taxYear" required placeholder="Year" defaultValue={new Date().getFullYear()} className="input" />
@@ -102,16 +96,9 @@ export default async function TaxesPage() {
       <section className="card p-5">
         <h2 className="mb-3 text-sm font-semibold text-[var(--text)]">Fees</h2>
         <form action={createFee} className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-6">
-          <select name="propertyId" required defaultValue="" className="input col-span-2">
-            <option value="" disabled>
-              Property
-            </option>
-            {properties.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} — {p.country}
-              </option>
-            ))}
-          </select>
+          <div className="col-span-2">
+            <PropertyCombobox name="propertyId" properties={properties} required placeholder="Property" />
+          </div>
           <input name="feeType" required placeholder="Fee type (HOA, legal, mgmt...)" className="input" />
           <input type="number" step="0.01" name="amount" required placeholder="Amount" className="input" />
           <input name="currency" defaultValue="USD" className="input" />

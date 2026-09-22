@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { requireOwner } from "@/lib/rbac";
 
 const schema = z.object({
   name: z.string().min(1),
@@ -39,6 +40,7 @@ export async function toggleEmployeeActive(id: string, active: boolean) {
 }
 
 export async function deleteEmployee(formData: FormData) {
+  await requireOwner();
   const id = formData.get("id") as string;
   await db.employee.delete({ where: { id } });
   revalidatePath("/employees");

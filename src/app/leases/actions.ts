@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
+import { requireOwner } from "@/lib/rbac";
 
 const leaseSchema = z.object({
   propertyId: z.string().min(1),
@@ -63,6 +64,7 @@ export async function updateLease(id: string, formData: FormData) {
 }
 
 export async function deleteLease(formData: FormData) {
+  await requireOwner();
   const id = formData.get("id") as string;
   await db.lease.delete({ where: { id } });
   revalidatePath("/leases");
@@ -106,6 +108,7 @@ export async function markRentPaid(leaseId: string, paymentId: string) {
 }
 
 export async function deleteRentPayment(formData: FormData) {
+  await requireOwner();
   const id = formData.get("id") as string;
   const leaseId = formData.get("leaseId") as string;
   await db.rentPayment.delete({ where: { id } });

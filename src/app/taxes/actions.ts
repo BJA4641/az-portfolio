@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { requireOwner } from "@/lib/rbac";
 
 const taxSchema = z.object({
   propertyId: z.string().min(1),
@@ -36,6 +37,7 @@ export async function markTaxPaid(id: string) {
 }
 
 export async function deleteTax(formData: FormData) {
+  await requireOwner();
   const id = formData.get("id") as string;
   await db.tax.delete({ where: { id } });
   revalidatePath("/taxes");
@@ -69,6 +71,7 @@ export async function markFeePaid(id: string) {
 }
 
 export async function deleteFee(formData: FormData) {
+  await requireOwner();
   const id = formData.get("id") as string;
   await db.fee.delete({ where: { id } });
   revalidatePath("/taxes");

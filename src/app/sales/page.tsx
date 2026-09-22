@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { DeleteButton } from "@/components/delete-button";
+import { PropertyCombobox } from "@/components/property-combobox";
 import { formatDate, formatMoney } from "@/lib/format";
 import {
   createBroker,
@@ -82,16 +83,9 @@ export default async function SalesPage() {
       <section className="card p-5">
         <h2 className="mb-3 text-sm font-semibold text-[var(--text)]">Sales</h2>
         <form action={createSale} className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-7">
-          <select name="propertyId" required defaultValue="" className="input col-span-2">
-            <option value="" disabled>
-              Property
-            </option>
-            {properties.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} — {p.country}
-              </option>
-            ))}
-          </select>
+          <div className="col-span-2">
+            <PropertyCombobox name="propertyId" properties={properties} required placeholder="Property" />
+          </div>
           <input type="date" name="saleDate" required className="input" />
           <input type="number" step="0.01" name="salePrice" required placeholder="Sale price" className="input" />
           <input name="currency" defaultValue="USD" className="input" />

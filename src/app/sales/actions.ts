@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { requireOwner } from "@/lib/rbac";
 
 const brokerSchema = z.object({
   name: z.string().min(1),
@@ -27,6 +28,7 @@ export async function createBroker(formData: FormData) {
 }
 
 export async function deleteBroker(formData: FormData) {
+  await requireOwner();
   const id = formData.get("id") as string;
   await db.broker.delete({ where: { id } });
   revalidatePath("/sales");
@@ -65,6 +67,7 @@ export async function createSale(formData: FormData) {
 }
 
 export async function deleteSale(formData: FormData) {
+  await requireOwner();
   const id = formData.get("id") as string;
   await db.sale.delete({ where: { id } });
   revalidatePath("/sales");
@@ -100,6 +103,7 @@ export async function markCommissionPaid(id: string) {
 }
 
 export async function deleteCommission(formData: FormData) {
+  await requireOwner();
   const id = formData.get("id") as string;
   await db.commission.delete({ where: { id } });
   revalidatePath("/sales");

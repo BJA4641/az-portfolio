@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { DeleteButton } from "@/components/delete-button";
+import { PropertyCombobox } from "@/components/property-combobox";
 import { formatDate, formatMoney } from "@/lib/format";
 import { createMaintenanceVisit, deleteMaintenanceVisit, updateMaintenanceStatus } from "./actions";
 
@@ -28,16 +29,9 @@ export default async function MaintenancePage() {
       <div className="card p-5">
         <h2 className="mb-3 text-sm font-semibold text-[var(--text)]">Schedule a visit</h2>
         <form action={createMaintenanceVisit} className="grid grid-cols-2 gap-3 sm:grid-cols-6">
-          <select name="propertyId" required defaultValue="" className="input col-span-2">
-            <option value="" disabled>
-              Property
-            </option>
-            {properties.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} — {p.country}
-              </option>
-            ))}
-          </select>
+          <div className="col-span-2">
+            <PropertyCombobox name="propertyId" properties={properties} required placeholder="Property" />
+          </div>
           <input type="date" name="visitDate" required className="input" />
           <input name="vendorName" required placeholder="Vendor" className="input" />
           <input name="description" required placeholder="Description" className="input col-span-2" />
