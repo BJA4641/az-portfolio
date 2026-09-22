@@ -1,4 +1,5 @@
 import type { Lease, Property } from "@prisma/client";
+import { PropertyCombobox } from "@/components/property-combobox";
 
 export function LeaseForm({
   action,
@@ -20,16 +21,12 @@ export function LeaseForm({
     <form action={action} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <label className="col-span-full flex flex-col gap-1 text-sm">
         <span className="font-medium text-[var(--text)]">Property</span>
-        <select name="propertyId" required defaultValue={defaultValues?.propertyId} className="input">
-          <option value="" disabled>
-            Select a property
-          </option>
-          {properties.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name} — {p.country}
-            </option>
-          ))}
-        </select>
+        <PropertyCombobox
+          name="propertyId"
+          properties={properties}
+          defaultValue={defaultValues?.propertyId}
+          required
+        />
       </label>
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium text-[var(--text)]">Tenant name</span>

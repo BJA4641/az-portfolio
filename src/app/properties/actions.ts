@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
+import { requireOwner } from "@/lib/rbac";
 
 const propertySchema = z.object({
   name: z.string().min(1),
@@ -61,6 +62,7 @@ export async function updateProperty(id: string, formData: FormData) {
 }
 
 export async function deleteProperty(formData: FormData) {
+  await requireOwner();
   const id = formData.get("id") as string;
   await db.property.delete({ where: { id } });
   revalidatePath("/properties");

@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { requireOwner } from "@/lib/rbac";
 
 const schema = z.object({
   propertyId: z.string().min(1),
@@ -36,6 +37,7 @@ export async function updateMaintenanceStatus(id: string, status: "SCHEDULED" | 
 }
 
 export async function deleteMaintenanceVisit(formData: FormData) {
+  await requireOwner();
   const id = formData.get("id") as string;
   await db.maintenanceVisit.delete({ where: { id } });
   revalidatePath("/maintenance");

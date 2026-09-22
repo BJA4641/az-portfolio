@@ -3,6 +3,7 @@ import { StatTile } from "@/components/stat-tile";
 import { PropertyStatusChart } from "@/components/charts/property-status-chart";
 import { CountryValueChart } from "@/components/charts/country-value-chart";
 import { formatDate, formatMoney } from "@/lib/format";
+import { DISPLAY_CURRENCY, sumInDisplayCurrency, toDisplayCurrency } from "@/lib/currency";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -24,15 +25,15 @@ export default async function DashboardPage() {
     upcomingMaintenance
   ] = await Promise.all([
     db.property.findMany({
-      select: { status: true, country: true, currentValue: true, purchasePrice: true }
+      select: { status: true, country: true, currentValue: true, purchasePrice: true, currency: true }
     }),
     db.lease.count({ where: { status: "ACTIVE" } }),
-    db.rentPayment.aggregate({
-      _sum: { amount: true },
+    db.rentPayment.findMany({
+      select: { amount: true, currency: true },
       where: { status: "PAID", paidDate: { gte: startOfMonth, lte: endOfMonth } }
     }),
-    db.tax.aggregate({
-      _sum: { amount: true },
+    db.tax.findMany({
+      select: { amount: true, currency: true },
       where: { status: "PENDING", dueDate: { lte: in30Days } }
     }),
     db.maintenanceVisit.count({ where: { status: "SCHEDULED" } }),
@@ -52,9 +53,11 @@ export default async function DashboardPage() {
 
   const ownedProperties = properties.filter((p) => p.status !== "SOLD");
   const portfolioValue = ownedProperties.reduce(
-    (sum, p) => sum + (p.currentValue ?? p.purchasePrice ?? 0),
+    (sum, p) => sum + toDisplayCurrency(p.currentValue ?? p.purchasePrice ?? 0, p.currency),
     0
   );
+  const rentCollectedThisMonth = sumInDisplayCurrency(rentPaidThisMonth);
+  const taxesDueTotal = sumInDisplayCurrency(taxesDue);
   const occupancyRate =
     ownedProperties.length > 0
       ? Math.round((activeLeaseCount / ownedProperties.length) * 100)
@@ -66,7 +69,8 @@ export default async function DashboardPage() {
   }, {});
 
   const valueByCountryMap = ownedProperties.reduce<Record<string, number>>((acc, p) => {
-    acc[p.country] = (acc[p.country] ?? 0) + (p.currentValue ?? p.purchasePrice ?? 0);
+    acc[p.country] =
+      (acc[p.country] ?? 0) + toDisplayCurrency(p.currentValue ?? p.purchasePrice ?? 0, p.currency);
     return acc;
   }, {});
   const valueByCountry = Object.entries(valueByCountryMap)
@@ -85,17 +89,21 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <StatTile label="Properties" value={String(properties.length)} />
-        <StatTile label="Portfolio value" value={formatMoney(portfolioValue, "USD")} />
+        <StatTile
+          label="Portfolio value"
+          value={formatMoney(portfolioValue, DISPLAY_CURRENCY)}
+          hint="Converted to USD"
+        />
         <StatTile
           label="Rent collected"
-          value={formatMoney(rentPaidThisMonth._sum.amount ?? 0, "USD")}
-          hint="This month"
+          value={formatMoney(rentCollectedThisMonth, DISPLAY_CURRENCY)}
+          hint="This month, converted to USD"
         />
         <StatTile label="Occupancy" value={`${occupancyRate}%`} hint={`${activeLeaseCount} active leases`} />
         <StatTile
           label="Taxes due"
-          value={formatMoney(taxesDue._sum.amount ?? 0, "USD")}
-          hint="Next 30 days"
+          value={formatMoney(taxesDueTotal, DISPLAY_CURRENCY)}
+          hint="Next 30 days, converted to USD"
         />
         <StatTile label="Maintenance" value={String(maintenanceScheduled)} hint="Scheduled visits" />
       </div>
