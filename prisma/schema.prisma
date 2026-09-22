@@ -1,0 +1,272 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  STAFF
+}
+
+enum PropertyType {
+  HOUSE
+  APARTMENT
+  COMMERCIAL
+  LAND
+  OTHER
+}
+
+enum PropertyStatus {
+  OWNED
+  FOR_SALE
+  SOLD
+}
+
+enum LeaseFrequency {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+enum LeaseStatus {
+  ACTIVE
+  EXPIRED
+  TERMINATED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  LATE
+  MISSED
+}
+
+enum TaxStatus {
+  PENDING
+  PAID
+  OVERDUE
+}
+
+enum SaleStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum CommissionStatus {
+  PENDING
+  PAID
+}
+
+enum FeeStatus {
+  PENDING
+  PAID
+  OVERDUE
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         UserRole @default(STAFF)
+  createdAt    DateTime @default(now())
+}
+
+model Property {
+  id            String         @id @default(cuid())
+  name          String
+  addressLine   String
+  city          String
+  country       String
+  propertyType  PropertyType   @default(HOUSE)
+  status        PropertyStatus @default(OWNED)
+  purchasePrice Float?
+  purchaseDate  DateTime?
+  currentValue  Float?
+  currency      String         @default("USD")
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  leases             Lease[]
+  taxes              Tax[]
+  maintenanceVisits  MaintenanceVisit[]
+  sales              Sale[]
+  fees               Fee[]
+
+  @@index([country])
+  @@index([status])
+}
+
+model Lease {
+  id            String         @id @default(cuid())
+  propertyId    String
+  tenantName    String
+  tenantContact String?
+  startDate     DateTime
+  endDate       DateTime
+  rentAmount    Float
+  currency      String         @default("USD")
+  frequency     LeaseFrequency @default(MONTHLY)
+  status        LeaseStatus    @default(ACTIVE)
+  depositAmount Float?
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  property     Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  rentPayments RentPayment[]
+  commissions  Commission[]
+
+  @@index([propertyId])
+  @@index([status])
+}
+
+model RentPayment {
+  id        String        @id @default(cuid())
+  leaseId   String
+  dueDate   DateTime
+  paidDate  DateTime?
+  amount    Float
+  currency  String        @default("USD")
+  status    PaymentStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+
+  lease Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  @@index([leaseId])
+  @@index([status])
+}
+
+model Tax {
+  id         String    @id @default(cuid())
+  propertyId String
+  taxType    String
+  country    String
+  taxYear    Int
+  amount     Float
+  currency   String    @default("USD")
+  dueDate    DateTime
+  paidDate   DateTime?
+  status     TaxStatus @default(PENDING)
+  createdAt  DateTime  @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([status])
+}
+
+model Sale {
+  id           String     @id @default(cuid())
+  propertyId   String
+  saleDate     DateTime
+  salePrice    Float
+  currency     String     @default("USD")
+  buyerName    String
+  buyerContact String?
+  brokerId     String?
+  status       SaleStatus @default(PENDING)
+  createdAt    DateTime   @default(now())
+
+  property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  broker      Broker?      @relation(fields: [brokerId], references: [id])
+  commissions Commission[]
+
+  @@index([propertyId])
+  @@index([brokerId])
+}
+
+model MaintenanceVisit {
+  id          String            @id @default(cuid())
+  propertyId  String
+  visitDate   DateTime
+  vendorName  String
+  description String
+  cost        Float?
+  currency    String            @default("USD")
+  status      MaintenanceStatus @default(SCHEDULED)
+  createdAt   DateTime          @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([status])
+}
+
+model Employee {
+  id         String   @id @default(cuid())
+  name       String
+  role       String
+  country    String
+  email      String?
+  phone      String?
+  salary     Float?
+  currency   String   @default("USD")
+  hireDate   DateTime?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+}
+
+model Broker {
+  id                    String   @id @default(cuid())
+  name                  String
+  agencyName            String?
+  contact               String?
+  email                 String?
+  defaultCommissionRate Float?
+  country               String
+  createdAt             DateTime @default(now())
+
+  sales       Sale[]
+  commissions Commission[]
+}
+
+model Commission {
+  id        String            @id @default(cuid())
+  brokerId  String
+  saleId    String?
+  leaseId   String?
+  amount    Float
+  currency  String            @default("USD")
+  rate      Float?
+  status    CommissionStatus  @default(PENDING)
+  paidDate  DateTime?
+  createdAt DateTime          @default(now())
+
+  broker Broker @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  sale   Sale?  @relation(fields: [saleId], references: [id])
+  lease  Lease? @relation(fields: [leaseId], references: [id])
+
+  @@index([brokerId])
+  @@index([saleId])
+  @@index([leaseId])
+}
+
+model Fee {
+  id         String    @id @default(cuid())
+  propertyId String
+  feeType    String
+  amount     Float
+  currency   String    @default("USD")
+  dueDate    DateTime
+  paidDate   DateTime?
+  status     FeeStatus @default(PENDING)
+  createdAt  DateTime  @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([status])
+}
