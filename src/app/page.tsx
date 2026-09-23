@@ -1,3 +1,6 @@
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
+import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { StatTile } from "@/components/stat-tile";
 import { PropertyStatusChart } from "@/components/charts/property-status-chart";
@@ -9,6 +12,11 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  const session = await getServerSession(authOptions);
+  if ((session?.user as { role?: string } | undefined)?.role === "TENANT") {
+    redirect("/portal");
+  }
+
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);

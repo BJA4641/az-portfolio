@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
@@ -112,5 +113,43 @@ export async function deleteRentPayment(formData: FormData) {
   const id = formData.get("id") as string;
   const leaseId = formData.get("leaseId") as string;
   await db.rentPayment.delete({ where: { id } });
+  revalidatePath(`/leases/${leaseId}`);
+}
+
+const tenantAccessSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  name: z.string().min(1)
+});
+
+/** Creates or updates the tenant login for this lease. Only the owner can grant portal access. */
+export async function setTenantAccess(leaseId: string, formData: FormData) {
+  await requireOwner();
+  const data = tenantAccessSchema.parse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+    name: formData.get("name")
+  });
+  const passwordHash = await bcrypt.hash(data.password, 10);
+
+  await db.user.upsert({
+    where: { email: data.email.toLowerCase() },
+    update: { passwordHash, name: data.name, role: "TENANT", leaseId },
+    create: {
+      email: data.email.toLowerCase(),
+      passwordHash,
+      name: data.name,
+      role: "TENANT",
+      leaseId
+    }
+  });
+  revalidatePath(`/leases/${leaseId}`);
+}
+
+export async function revokeTenantAccess(formData: FormData) {
+  await requireOwner();
+  const userId = formData.get("userId") as string;
+  const leaseId = formData.get("leaseId") as string;
+  await db.user.delete({ where: { id: userId } });
   revalidatePath(`/leases/${leaseId}`);
 }

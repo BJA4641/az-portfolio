@@ -26,7 +26,7 @@ export const authOptions: AuthOptions = {
         const valid = await bcrypt.compare(credentials.password, user.passwordHash);
         if (!valid) return null;
 
-        return { id: user.id, email: user.email, name: user.name, role: user.role };
+        return { id: user.id, email: user.email, name: user.name, role: user.role, leaseId: user.leaseId };
       }
     })
   ],
@@ -34,12 +34,14 @@ export const authOptions: AuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.role = (user as { role?: string }).role;
+        token.leaseId = (user as { leaseId?: string | null }).leaseId ?? undefined;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         (session.user as { role?: string }).role = token.role as string | undefined;
+        (session.user as { leaseId?: string }).leaseId = token.leaseId as string | undefined;
       }
       return session;
     }
