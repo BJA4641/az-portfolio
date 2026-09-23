@@ -14,7 +14,8 @@ import {
   resolveAppreciationRate,
   resolveRentGrowthRate
 } from "@/lib/valuation";
-import { createComparable, deleteComparable, updateForecastAssumptions } from "./actions";
+import { createComparable, deleteComparable, fetchLiveComps, updateForecastAssumptions } from "./actions";
+import { isRentcastConfigured } from "@/lib/rentcast";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,20 @@ export default async function MarketAnalysisPage({ params }: { params: Promise<{
 
   const boundCreateComp = createComparable.bind(null, id);
   const boundUpdateAssumptions = updateForecastAssumptions.bind(null, id);
+  const boundFetchLiveComps = fetchLiveComps.bind(null, id);
+
+  const isUsProperty = ["usa", "us", "united states", "united states of america"].includes(
+    property.country.trim().toLowerCase()
+  );
+  const hasUsAddress = Boolean(property.state && property.postalCode);
+  const rentcastConfigured = isRentcastConfigured();
+  const liveCompsDisabledReason = !rentcastConfigured
+    ? "Add a RentCast API key (RENTCAST_API_KEY) to enable this"
+    : !isUsProperty
+      ? "RentCast only covers US properties"
+      : !hasUsAddress
+        ? "Add this property's state and ZIP/postal code first"
+        : null;
 
   const subjectValue = property.currentValue ?? property.purchasePrice ?? null;
   const subjectValueUSD = subjectValue != null ? toDisplayCurrency(subjectValue, property.currency) : null;
@@ -216,14 +231,26 @@ export default async function MarketAnalysisPage({ params }: { params: Promise<{
       <div className="card p-5">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-[var(--text)]">Comparable properties</h2>
-          <button
-            type="button"
-            disabled
-            title="Requires a Rentometer or Yardi Matrix API subscription"
-            className="cursor-not-allowed rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-500"
-          >
-            Auto-fetch live comps (not connected)
-          </button>
+          {liveCompsDisabledReason ? (
+            <button
+              type="button"
+              disabled
+              title={liveCompsDisabledReason}
+              className="cursor-not-allowed rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-500"
+            >
+              Auto-fetch live comps (not connected)
+            </button>
+          ) : (
+            <form action={boundFetchLiveComps}>
+              <button
+                type="submit"
+                title="Pulls sale + rental comps from RentCast for this address"
+                className="rounded-lg bg-brand-950 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+              >
+                Auto-fetch live comps
+              </button>
+            </form>
+          )}
         </div>
         <form action={boundCreateComp} className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-7">
           <input name="addressLine" required placeholder="Address" className="input col-span-2" />

@@ -98,6 +98,9 @@ model Property {
   addressLine   String
   city          String
   country       String
+  // US state + ZIP, needed to look up live comps via RentCast (US-only coverage).
+  state         String?
+  postalCode    String?
   propertyType  PropertyType   @default(HOUSE)
   status        PropertyStatus @default(OWNED)
   purchasePrice Float?

@@ -39,6 +39,10 @@ Visit `http://localhost:3000` and log in with the email/password you set in
    Variables**:
    - `NEXTAUTH_SECRET` — generate with `openssl rand -base64 32`
    - `NEXTAUTH_URL` — your production URL (e.g. `https://your-app.vercel.app`)
+   - `RENTCAST_API_KEY` — optional, enables "Auto-fetch live comps" on the
+     market analysis page for US properties (get a key at
+     [rentcast.io/api](https://www.rentcast.io/api); the free tier covers
+     50 lookups/month). Leave unset to keep that button disabled.
 4. Deploy. The build script (`prisma generate && prisma migrate deploy && next build`)
    applies migrations automatically on every deploy.
 5. Create your owner login once, from your local machine, pointed at the
