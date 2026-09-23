@@ -4,6 +4,9 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireOwner } from "@/lib/rbac";
+import { fetchLiveComparables } from "@/lib/rentcast";
+
+const RENTCAST_SOURCE = "RentCast (auto)";
 
 const compSchema = z.object({
   addressLine: z.string().min(1),
@@ -46,6 +49,43 @@ export async function deleteComparable(formData: FormData) {
   const id = formData.get("id") as string;
   const propertyId = formData.get("propertyId") as string;
   await db.comparable.delete({ where: { id } });
+  revalidatePath(`/properties/${propertyId}/market`);
+}
+
+export async function fetchLiveComps(propertyId: string) {
+  await requireOwner();
+  const property = await db.property.findUnique({ where: { id: propertyId } });
+  if (!property) throw new Error("Property not found");
+  if (!property.state || !property.postalCode) {
+    throw new Error("Add this property's state and ZIP/postal code before fetching live comps");
+  }
+
+  const results = await fetchLiveComparables({
+    addressLine: property.addressLine,
+    city: property.city,
+    state: property.state,
+    postalCode: property.postalCode,
+    areaSqm: property.areaSqm
+  });
+
+  await db.$transaction([
+    db.comparable.deleteMany({ where: { propertyId, source: RENTCAST_SOURCE } }),
+    db.comparable.createMany({
+      data: results.map((r) => ({
+        propertyId,
+        addressLine: r.addressLine,
+        city: r.city,
+        country: property.country,
+        areaSqm: r.areaSqm ?? property.areaSqm ?? 0,
+        salePrice: r.listingType === "sale" ? r.price : null,
+        monthlyRent: r.listingType === "rental" ? r.price : null,
+        currency: "USD",
+        observedDate: r.observedDate,
+        source: RENTCAST_SOURCE
+      }))
+    })
+  ]);
+
   revalidatePath(`/properties/${propertyId}/market`);
 }
 

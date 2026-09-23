@@ -28,6 +28,12 @@ export function PropertyForm({
       <Field label="City">
         <input name="city" required defaultValue={defaultValues?.city} className="input" />
       </Field>
+      <Field label="State (US properties)">
+        <input name="state" defaultValue={defaultValues?.state ?? undefined} placeholder="e.g. TX" className="input" />
+      </Field>
+      <Field label="ZIP / postal code">
+        <input name="postalCode" defaultValue={defaultValues?.postalCode ?? undefined} className="input" />
+      </Field>
       <Field label="Type">
         <select name="propertyType" defaultValue={defaultValues?.propertyType ?? "HOUSE"} className="input">
           {PROPERTY_TYPES.map((t) => (
