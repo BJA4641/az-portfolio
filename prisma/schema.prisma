@@ -11,6 +11,7 @@ datasource db {
 enum UserRole {
   OWNER
   STAFF
+  TENANT
 }
 
 enum PropertyType {
@@ -59,6 +60,7 @@ enum SaleStatus {
 }
 
 enum MaintenanceStatus {
+  REQUESTED
   SCHEDULED
   COMPLETED
   CANCELLED
@@ -81,7 +83,13 @@ model User {
   passwordHash String
   name         String
   role         UserRole @default(STAFF)
+  // Set only for TENANT users: which lease this login can view/act on.
+  leaseId      String?
   createdAt    DateTime @default(now())
+
+  lease Lease? @relation(fields: [leaseId], references: [id], onDelete: SetNull)
+
+  @@index([leaseId])
 }
 
 model Property {
@@ -101,6 +109,10 @@ model Property {
   // back to a CAGR computed from purchasePrice -> currentValue.
   appreciationRateOverride Float?
   rentGrowthRateOverride   Float?
+  // Public vacancy listing (free alternative to paid syndication).
+  isListed            Boolean @default(false)
+  askingRent          Float?
+  listingDescription  String?
   notes         String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -155,6 +167,7 @@ model Lease {
   property     Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   rentPayments RentPayment[]
   commissions  Commission[]
+  tenantUsers  User[]
 
   @@index([propertyId])
   @@index([status])
@@ -219,7 +232,10 @@ model MaintenanceVisit {
   id          String            @id @default(cuid())
   propertyId  String
   visitDate   DateTime
-  vendorName  String
+  // Free-text fallback for quick entries; prefer vendorId once the vendor
+  // is on file (needed for 1099 aggregation).
+  vendorName  String?
+  vendorId    String?
   description String
   cost        Float?
   currency    String            @default("USD")
@@ -227,9 +243,25 @@ model MaintenanceVisit {
   createdAt   DateTime          @default(now())
 
   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  vendor   Vendor?  @relation(fields: [vendorId], references: [id])
 
   @@index([propertyId])
   @@index([status])
+  @@index([vendorId])
+}
+
+model Vendor {
+  id        String   @id @default(cuid())
+  name      String
+  contact   String?
+  email     String?
+  // Stored as plain text for the 1099 paperwork you'd fill in yourself.
+  // Not encrypted - avoid putting a full SSN here, an EIN or masked ID is safer.
+  taxId     String?
+  country   String
+  createdAt DateTime @default(now())
+
+  maintenanceVisits MaintenanceVisit[]
 }
 
 model Employee {

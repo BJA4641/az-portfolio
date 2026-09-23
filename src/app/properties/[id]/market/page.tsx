@@ -214,7 +214,17 @@ export default async function MarketAnalysisPage({ params }: { params: Promise<{
       </div>
 
       <div className="card p-5">
-        <h2 className="mb-3 text-sm font-semibold text-[var(--text)]">Comparable properties</h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-[var(--text)]">Comparable properties</h2>
+          <button
+            type="button"
+            disabled
+            title="Requires a Rentometer or Yardi Matrix API subscription"
+            className="cursor-not-allowed rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-500"
+          >
+            Auto-fetch live comps (not connected)
+          </button>
+        </div>
         <form action={boundCreateComp} className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-7">
           <input name="addressLine" required placeholder="Address" className="input col-span-2" />
           <input name="city" required placeholder="City" className="input" />

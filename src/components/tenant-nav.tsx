@@ -5,20 +5,11 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 
 const links = [
-  { href: "/", label: "Dashboard" },
-  { href: "/alerts", label: "Alerts" },
-  { href: "/properties", label: "Properties" },
-  { href: "/leases", label: "Leases & Rent" },
-  { href: "/maintenance", label: "Maintenance" },
-  { href: "/sales", label: "Sales & Brokers" },
-  { href: "/taxes", label: "Taxes & Fees" },
-  { href: "/employees", label: "Employees" },
-  { href: "/vendors", label: "Vendors & 1099" },
-  { href: "/reports/owner-statements", label: "Owner Statements" },
-  { href: "/listings", label: "Listings" }
+  { href: "/portal", label: "My lease" },
+  { href: "/portal/maintenance", label: "Maintenance requests" }
 ];
 
-export function Nav() {
+export function TenantNav() {
   const pathname = usePathname();
 
   return (
@@ -28,7 +19,7 @@ export function Nav() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-sm font-bold text-brand-950">
             AZ
           </div>
-          <span className="text-lg font-semibold">AZ Portfolio</span>
+          <span className="text-lg font-semibold">Tenant Portal</span>
         </div>
         <nav className="flex flex-col gap-0.5 px-3">
           {links.map((link) => {
@@ -38,9 +29,7 @@ export function Nav() {
                 key={link.href}
                 href={link.href}
                 className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  active
-                    ? "bg-white/10 text-white"
-                    : "text-white/60 hover:bg-white/5 hover:text-white"
+                  active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
                 }`}
               >
                 {link.label}
