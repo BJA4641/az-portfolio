@@ -77,6 +77,33 @@ enum FeeStatus {
   OVERDUE
 }
 
+enum ApprovalStatus {
+  OPEN
+  AWAITING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
+  CHEQUE
+  CARD
+  OTHER
+}
+
+enum RentScheduleStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum AssetStatus {
+  IN_USE
+  STORED
+  DISPOSED
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -88,6 +115,11 @@ model User {
   createdAt    DateTime @default(now())
 
   lease Lease? @relation(fields: [leaseId], references: [id], onDelete: SetNull)
+
+  createdMaintenanceVisits MaintenanceVisit[]
+  createdInvoices          Invoice[]
+  createdInvoicePayments   InvoicePayment[]
+  uploadedAttachments      Attachment[]
 
   @@index([leaseId])
 }
@@ -126,6 +158,7 @@ model Property {
   sales              Sale[]
   fees               Fee[]
   comparables        Comparable[]
+  assets             Asset[]
 
   @@index([country])
   @@index([status])
@@ -171,6 +204,7 @@ model Lease {
   rentPayments RentPayment[]
   commissions  Commission[]
   tenantUsers  User[]
+  rentSchedules RentSchedule[]
 
   @@index([propertyId])
   @@index([status])
@@ -185,11 +219,48 @@ model RentPayment {
   currency  String        @default("USD")
   status    PaymentStatus @default(PENDING)
   createdAt DateTime      @default(now())
+  // Optional link to a generated installment, so a rent schedule's plan can
+  // be reconciled against actual payments (including partial ones).
+  installmentId String?
 
-  lease Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  lease       Lease        @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  installment Installment? @relation(fields: [installmentId], references: [id], onDelete: SetNull)
 
   @@index([leaseId])
   @@index([status])
+  @@index([installmentId])
+}
+
+model RentSchedule {
+  id               String             @id @default(cuid())
+  referenceNo      String             @unique
+  leaseId          String
+  totalRent        Float
+  frequency        LeaseFrequency
+  installmentCount Int
+  firstDueDate     DateTime
+  status           RentScheduleStatus @default(ACTIVE)
+  notes            String?
+  createdAt        DateTime           @default(now())
+
+  lease        Lease         @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  installments Installment[]
+
+  @@index([leaseId])
+}
+
+model Installment {
+  id             String   @id @default(cuid())
+  rentScheduleId String
+  sequence       Int
+  dueDate        DateTime
+  amount         Float
+  createdAt      DateTime @default(now())
+
+  rentSchedule RentSchedule  @relation(fields: [rentScheduleId], references: [id], onDelete: Cascade)
+  rentPayments RentPayment[]
+
+  @@index([rentScheduleId])
 }
 
 model Tax {
@@ -233,6 +304,9 @@ model Sale {
 
 model MaintenanceVisit {
   id          String            @id @default(cuid())
+  // System-generated Expense & Order reference, e.g. WO-2026-0001. Null on
+  // rows created before this field existed.
+  referenceNo String?           @unique
   propertyId  String
   visitDate   DateTime
   // Free-text fallback for quick entries; prefer vendorId once the vendor
@@ -243,10 +317,16 @@ model MaintenanceVisit {
   cost        Float?
   currency    String            @default("USD")
   status      MaintenanceStatus @default(SCHEDULED)
+  // Financial approval state, separate from the operational status above.
+  // An invoice can only be raised against an APPROVED expense/order.
+  approvalStatus ApprovalStatus @default(APPROVED)
+  createdById    String?
   createdAt   DateTime          @default(now())
 
-  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  vendor   Vendor?  @relation(fields: [vendorId], references: [id])
+  property  Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  vendor    Vendor?  @relation(fields: [vendorId], references: [id])
+  createdBy User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  invoices  Invoice[]
 
   @@index([propertyId])
   @@index([status])
@@ -265,6 +345,7 @@ model Vendor {
   createdAt DateTime @default(now())
 
   maintenanceVisits MaintenanceVisit[]
+  invoices          Invoice[]
 }
 
 model Employee {
@@ -331,4 +412,113 @@ model Fee {
 
   @@index([propertyId])
   @@index([status])
+}
+
+// Backs the system-generated reference numbers (WO-2026-0001, INV-2026-0001, ...):
+// one row per prefix+year, incremented atomically on every allocation.
+model Counter {
+  id    String @id
+  value Int    @default(0)
+}
+
+model Country {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  isoCode         String   @unique
+  defaultCurrency String   @default("USD")
+  taxRate         Float?
+  timezone        String?
+  createdAt       DateTime @default(now())
+}
+
+model Asset {
+  id           String      @id @default(cuid())
+  name         String
+  category     String
+  propertyId   String
+  purchaseDate DateTime?
+  value        Float?
+  currency     String      @default("USD")
+  status       AssetStatus @default(IN_USE)
+  createdAt    DateTime    @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+}
+
+// A supplier payable, always raised against an approved Expense & Order
+// (MaintenanceVisit). Paid/outstanding status is computed from `payments`,
+// never stored, so it can never drift from the actual settlement history.
+model Invoice {
+  id                    String   @id @default(cuid())
+  referenceNo           String   @unique
+  maintenanceVisitId    String
+  vendorId              String
+  supplierInvoiceNumber String?
+  invoiceDate           DateTime
+  dueDate               DateTime
+  amount                Float
+  currency              String   @default("USD")
+  // Voided invoices stay in history but are excluded from payable balances.
+  voided                Boolean  @default(false)
+  createdById           String?
+  createdAt             DateTime @default(now())
+
+  maintenanceVisit MaintenanceVisit @relation(fields: [maintenanceVisitId], references: [id], onDelete: Cascade)
+  vendor           Vendor           @relation(fields: [vendorId], references: [id])
+  createdBy        User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  payments         InvoicePayment[]
+
+  @@index([maintenanceVisitId])
+  @@index([vendorId])
+}
+
+// One immutable row per settlement transaction against an invoice — never a
+// free-text "paid amount" on the invoice header, so partial payments and
+// audit evidence are always possible.
+model InvoicePayment {
+  id                String        @id @default(cuid())
+  referenceNo       String        @unique
+  invoiceId         String
+  paymentDate       DateTime
+  amount            Float
+  method            PaymentMethod
+  notes             String?
+  // Method-specific evidence fields.
+  bankName          String?
+  transferReference String?
+  chequeNumber      String?
+  cashReceiptNumber String?
+  receivedBy        String?
+  createdById       String?
+  createdAt         DateTime      @default(now())
+
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+}
+
+// Generic, reusable attachment store for any record in the system
+// (leases, invoices, payments, expense & orders, vendors, ...).
+model Attachment {
+  id           String   @id @default(cuid())
+  entityType   String
+  entityId     String
+  // Denormalized display label captured at upload time (e.g. property name,
+  // invoice reference) so the central Documents list never needs a
+  // polymorphic join back to every possible entity table.
+  entityLabel  String
+  fileName     String
+  mimeType     String
+  fileSize     Int
+  storageKey   String
+  description  String?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  uploadedBy User? @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
 }

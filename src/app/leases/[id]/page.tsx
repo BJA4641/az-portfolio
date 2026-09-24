@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { LeaseForm } from "@/components/leases/lease-form";
 import { DeleteButton } from "@/components/delete-button";
+import { AttachmentPanel } from "@/components/documents/attachment-panel";
 import { formatDate, formatMoney } from "@/lib/format";
 import {
   updateLease,
@@ -11,7 +12,10 @@ import {
   deleteRentPayment,
   markRentPaid,
   setTenantAccess,
-  revokeTenantAccess
+  revokeTenantAccess,
+  generateRentSchedule,
+  cancelRentSchedule,
+  recordInstallmentPayment
 } from "../actions";
 
 const PAYMENT_STYLES: Record<string, string> = {
@@ -21,21 +25,41 @@ const PAYMENT_STYLES: Record<string, string> = {
   MISSED: "bg-red-50 text-red-700"
 };
 
+const INSTALLMENT_STYLES: Record<string, string> = {
+  PAID: "bg-emerald-50 text-emerald-700",
+  PARTIALLY_PAID: "bg-blue-50 text-blue-700",
+  OVERDUE: "bg-red-50 text-red-700",
+  DUE: "bg-orange-50 text-orange-700"
+};
+
+function installmentStatus(dueDate: Date, amount: number, paid: number) {
+  if (paid >= amount) return "PAID";
+  if (paid > 0) return "PARTIALLY_PAID";
+  if (dueDate.getTime() < Date.now()) return "OVERDUE";
+  return "DUE";
+}
+
 export default async function LeaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [lease, properties, tenantUsers] = await Promise.all([
+  const [lease, properties, tenantUsers, rentSchedule] = await Promise.all([
     db.lease.findUnique({
       where: { id },
       include: { rentPayments: { orderBy: { dueDate: "desc" } } }
     }),
     db.property.findMany({ select: { id: true, name: true, country: true }, orderBy: { name: "asc" } }),
-    db.user.findMany({ where: { leaseId: id, role: "TENANT" }, orderBy: { createdAt: "asc" } })
+    db.user.findMany({ where: { leaseId: id, role: "TENANT" }, orderBy: { createdAt: "asc" } }),
+    db.rentSchedule.findFirst({
+      where: { leaseId: id, status: "ACTIVE" },
+      include: { installments: { include: { rentPayments: true }, orderBy: { sequence: "asc" } } },
+      orderBy: { createdAt: "desc" }
+    })
   ]);
   if (!lease) notFound();
 
   const boundUpdate = updateLease.bind(null, id);
   const boundAddPayment = addRentPayment.bind(null, id);
   const boundSetTenantAccess = setTenantAccess.bind(null, id);
+  const boundGenerateSchedule = generateRentSchedule.bind(null, id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -173,6 +197,111 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             {tenantUsers.length > 0 ? "Add another login" : "Create tenant login"}
           </button>
         </form>
+      </div>
+
+      <div className="card max-w-3xl p-6">
+        <h2 className="mb-1 text-sm font-semibold text-[var(--text)]">Rent schedule</h2>
+        <p className="mb-3 text-xs text-[var(--text-muted)]">
+          Generate the full installment plan upfront, then reconcile actual payments (including partial ones)
+          against each due installment.
+        </p>
+        {rentSchedule ? (
+          <>
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs text-[var(--text-muted)]">
+                {rentSchedule.referenceNo} · {rentSchedule.installmentCount} installments
+              </p>
+              <DeleteButton
+                action={cancelRentSchedule}
+                id={rentSchedule.id}
+                extraFields={{ leaseId: lease.id }}
+                label="Cancel schedule"
+                confirmText="Cancel this rent schedule?"
+              />
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                  <th className="py-2">#</th>
+                  <th className="py-2">Due</th>
+                  <th className="py-2">Amount</th>
+                  <th className="py-2">Paid</th>
+                  <th className="py-2">Balance</th>
+                  <th className="py-2">Status</th>
+                  <th className="py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rentSchedule.installments.map((inst) => {
+                  const paid = inst.rentPayments.reduce((sum, p) => sum + p.amount, 0);
+                  const balance = Math.max(inst.amount - paid, 0);
+                  const status = installmentStatus(inst.dueDate, inst.amount, paid);
+                  return (
+                    <tr key={inst.id} className="border-b border-[var(--border)] last:border-0">
+                      <td className="py-2 text-[var(--text-muted)]">
+                        {rentSchedule.referenceNo}-{String(inst.sequence).padStart(2, "0")}
+                      </td>
+                      <td className="py-2">{formatDate(inst.dueDate)}</td>
+                      <td className="py-2 tabular-nums">{formatMoney(inst.amount, lease.currency)}</td>
+                      <td className="py-2 tabular-nums">{formatMoney(paid, lease.currency)}</td>
+                      <td className="py-2 tabular-nums">{formatMoney(balance, lease.currency)}</td>
+                      <td className="py-2">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${INSTALLMENT_STYLES[status]}`}>
+                          {status.replace("_", " ")}
+                        </span>
+                      </td>
+                      <td className="py-2 text-right">
+                        {balance > 0 && (
+                          <form
+                            action={recordInstallmentPayment.bind(null, lease.id, inst.id)}
+                            className="flex items-center justify-end gap-1"
+                          >
+                            <input type="date" name="paidDate" required className="input w-28 text-xs" />
+                            <input
+                              type="number"
+                              step="0.01"
+                              name="amount"
+                              required
+                              max={balance}
+                              defaultValue={balance}
+                              className="input w-20 text-xs"
+                            />
+                            <button type="submit" className="text-xs font-medium text-brand-700 hover:underline">
+                              Record
+                            </button>
+                          </form>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        ) : (
+          <form action={boundGenerateSchedule} className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <input type="number" step="0.01" name="totalRent" required defaultValue={lease.rentAmount} placeholder="Total rent" className="input" />
+            <select name="frequency" defaultValue={lease.frequency} className="input">
+              <option value="MONTHLY">Monthly</option>
+              <option value="QUARTERLY">Quarterly</option>
+              <option value="ANNUAL">Annual</option>
+            </select>
+            <input type="number" name="installmentCount" required defaultValue={12} min={1} max={60} placeholder="# installments" className="input" />
+            <input type="date" name="firstDueDate" required className="input" />
+            <button type="submit" className="rounded-lg bg-brand-950 px-3 py-2 text-sm font-semibold text-white hover:opacity-90">
+              Generate schedule
+            </button>
+          </form>
+        )}
+      </div>
+
+      <div className="card max-w-3xl p-6">
+        <AttachmentPanel
+          entityType="Lease"
+          entityId={lease.id}
+          entityLabel={lease.tenantName}
+          revalidatePath={`/leases/${lease.id}`}
+        />
       </div>
     </div>
   );

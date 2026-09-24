@@ -8,12 +8,16 @@ const links = [
   { href: "/", label: "Dashboard" },
   { href: "/alerts", label: "Alerts" },
   { href: "/properties", label: "Properties" },
+  { href: "/countries", label: "Countries" },
+  { href: "/assets", label: "Assets" },
   { href: "/leases", label: "Leases & Rent" },
   { href: "/maintenance", label: "Maintenance" },
+  { href: "/invoices", label: "Invoices & Payments" },
   { href: "/sales", label: "Sales & Brokers" },
   { href: "/taxes", label: "Taxes & Fees" },
   { href: "/employees", label: "Employees" },
   { href: "/vendors", label: "Vendors & 1099" },
+  { href: "/documents", label: "Documents" },
   { href: "/reports/owner-statements", label: "Owner Statements" },
   { href: "/listings", label: "Listings" }
 ];

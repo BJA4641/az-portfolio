@@ -18,6 +18,12 @@ export async function getSessionLeaseId(): Promise<string | undefined> {
   return (session?.user as { leaseId?: string } | undefined)?.leaseId;
 }
 
+/** The logged-in user's id, for audit fields (createdById/uploadedById). */
+export async function getSessionUserId(): Promise<string | undefined> {
+  const session = await getServerSession(authOptions);
+  return (session?.user as { id?: string } | undefined)?.id;
+}
+
 export async function requireOwner() {
   const role = await getSessionRole();
   if (role !== "OWNER") {

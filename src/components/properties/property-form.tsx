@@ -5,14 +5,18 @@ const STATUSES = ["OWNED", "FOR_SALE", "SOLD"];
 
 export function PropertyForm({
   action,
-  defaultValues
+  defaultValues,
+  countries = []
 }: {
   action: (formData: FormData) => void;
   defaultValues?: Partial<Property>;
+  countries?: { name: string; defaultCurrency: string }[];
 }) {
   const purchaseDateValue = defaultValues?.purchaseDate
     ? new Date(defaultValues.purchaseDate).toISOString().slice(0, 10)
     : "";
+  const currentCountry = defaultValues?.country;
+  const countryNames = countries.map((c) => c.name);
 
   return (
     <form action={action} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -20,7 +24,20 @@ export function PropertyForm({
         <input name="name" required defaultValue={defaultValues?.name} className="input" />
       </Field>
       <Field label="Country">
-        <input name="country" required defaultValue={defaultValues?.country} className="input" />
+        {countries.length > 0 ? (
+          <select name="country" required defaultValue={currentCountry} className="input">
+            {currentCountry && !countryNames.includes(currentCountry) && (
+              <option value={currentCountry}>{currentCountry}</option>
+            )}
+            {countries.map((c) => (
+              <option key={c.name} value={c.name}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input name="country" required defaultValue={defaultValues?.country} placeholder="Add a country under Masters → Countries first" className="input" />
+        )}
       </Field>
       <Field label="Address">
         <input name="addressLine" required defaultValue={defaultValues?.addressLine} className="input" />

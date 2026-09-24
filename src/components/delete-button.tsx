@@ -4,12 +4,14 @@ export function DeleteButton({
   action,
   id,
   extraFields,
-  confirmText = "Delete this record? This can't be undone."
+  confirmText = "Delete this record? This can't be undone.",
+  label = "Delete"
 }: {
   action: (formData: FormData) => void;
   id: string;
   extraFields?: Record<string, string>;
   confirmText?: string;
+  label?: string;
 }) {
   return (
     <form
@@ -29,7 +31,7 @@ export function DeleteButton({
         type="submit"
         className="text-xs font-medium text-red-600 hover:underline"
       >
-        Delete
+        {label}
       </button>
     </form>
   );

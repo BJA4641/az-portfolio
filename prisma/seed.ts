@@ -19,6 +19,18 @@ async function main() {
   });
   console.log(`Owner login ready: ${ownerEmail}`);
 
+  const defaultCountries = [
+    { name: "United States", isoCode: "USA", defaultCurrency: "USD" },
+    { name: "Spain", isoCode: "ESP", defaultCurrency: "EUR" },
+    { name: "United Kingdom", isoCode: "GBR", defaultCurrency: "GBP" },
+    { name: "United Arab Emirates", isoCode: "UAE", defaultCurrency: "AED" },
+    { name: "South Korea", isoCode: "KOR", defaultCurrency: "KRW" }
+  ];
+  for (const country of defaultCountries) {
+    await db.country.upsert({ where: { name: country.name }, update: {}, create: country });
+  }
+  console.log("Default countries ready.");
+
   const existing = await db.property.count();
   if (existing > 0) {
     console.log("Sample data already present, skipping demo data seed.");

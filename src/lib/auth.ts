@@ -42,6 +42,7 @@ export const authOptions: AuthOptions = {
       if (session.user) {
         (session.user as { role?: string }).role = token.role as string | undefined;
         (session.user as { leaseId?: string }).leaseId = token.leaseId as string | undefined;
+        (session.user as { id?: string }).id = token.sub;
       }
       return session;
     }
