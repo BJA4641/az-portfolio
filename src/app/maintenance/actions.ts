@@ -3,7 +3,8 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireOwner } from "@/lib/rbac";
+import { ForbiddenError, getSessionRole, getSessionUserId, requireOwner } from "@/lib/rbac";
+import { nextReference } from "@/lib/reference";
 
 const schema = z.object({
   propertyId: z.string().min(1),
@@ -27,9 +28,38 @@ export async function createMaintenanceVisit(formData: FormData) {
     currency: formData.get("currency"),
     status: formData.get("status")
   });
+  const [role, createdById, referenceNo] = await Promise.all([
+    getSessionRole(),
+    getSessionUserId(),
+    nextReference("WO")
+  ]);
   await db.maintenanceVisit.create({
-    data: { ...data, visitDate: new Date(data.visitDate) }
+    data: {
+      ...data,
+      visitDate: new Date(data.visitDate),
+      referenceNo,
+      createdById,
+      // The owner's own entries are self-approved; staff entries need sign-off
+      // before an invoice can be raised against them.
+      approvalStatus: role === "OWNER" ? "APPROVED" : "OPEN"
+    }
   });
+  revalidatePath("/maintenance");
+}
+
+/** Staff submits an OPEN expense & order for the owner's approval. */
+export async function submitForApproval(id: string) {
+  const visit = await db.maintenanceVisit.findUniqueOrThrow({ where: { id } });
+  if (visit.approvalStatus !== "OPEN") throw new Error("Only open expense & orders can be submitted for approval");
+  await db.maintenanceVisit.update({ where: { id }, data: { approvalStatus: "AWAITING_APPROVAL" } });
+  revalidatePath("/maintenance");
+}
+
+/** Owner approves or rejects an expense & order. Only APPROVED ones can get an invoice. */
+export async function setApprovalStatus(id: string, decision: "APPROVED" | "REJECTED") {
+  const role = await getSessionRole();
+  if (role !== "OWNER") throw new ForbiddenError("Only the portfolio owner can approve expenses.");
+  await db.maintenanceVisit.update({ where: { id }, data: { approvalStatus: decision } });
   revalidatePath("/maintenance");
 }
 
@@ -55,9 +85,15 @@ export async function assignMaintenanceVisit(id: string, formData: FormData) {
     cost: formData.get("cost") || null,
     currency: formData.get("currency")
   });
+  const role = await getSessionRole();
   await db.maintenanceVisit.update({
     where: { id },
-    data: { ...data, visitDate: new Date(data.visitDate), status: "SCHEDULED" }
+    data: {
+      ...data,
+      visitDate: new Date(data.visitDate),
+      status: "SCHEDULED",
+      approvalStatus: role === "OWNER" ? "APPROVED" : "OPEN"
+    }
   });
   revalidatePath("/maintenance");
 }

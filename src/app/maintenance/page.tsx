@@ -1,13 +1,17 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { DeleteButton } from "@/components/delete-button";
 import { PropertyCombobox } from "@/components/property-combobox";
 import { formatDate, formatMoney } from "@/lib/format";
+import { getSessionRole } from "@/lib/rbac";
 import {
   createMaintenanceVisit,
   deleteMaintenanceVisit,
   updateMaintenanceStatus,
-  assignMaintenanceVisit
+  assignMaintenanceVisit,
+  submitForApproval,
+  setApprovalStatus
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -19,15 +23,24 @@ const STATUS_STYLES: Record<string, string> = {
   CANCELLED: "bg-gray-100 text-gray-600"
 };
 
+const APPROVAL_STYLES: Record<string, string> = {
+  OPEN: "bg-gray-100 text-gray-600",
+  AWAITING_APPROVAL: "bg-orange-50 text-orange-700",
+  APPROVED: "bg-emerald-50 text-emerald-700",
+  REJECTED: "bg-red-50 text-red-700"
+};
+
 export default async function MaintenancePage() {
-  const [allVisits, properties, vendors] = await Promise.all([
+  const [allVisits, properties, vendors, role] = await Promise.all([
     db.maintenanceVisit.findMany({
       include: { property: { select: { name: true, country: true } }, vendor: { select: { name: true } } },
       orderBy: { visitDate: "desc" }
     }),
     db.property.findMany({ select: { id: true, name: true, country: true }, orderBy: { name: "asc" } }),
-    db.vendor.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } })
+    db.vendor.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    getSessionRole()
   ]);
+  const isOwner = role === "OWNER";
 
   const requests = allVisits.filter((v) => v.status === "REQUESTED");
   const visits = allVisits.filter((v) => v.status !== "REQUESTED");
@@ -113,17 +126,20 @@ export default async function MaintenancePage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+              <th className="px-4 py-3">Reference</th>
               <th className="px-4 py-3">Property</th>
               <th className="px-4 py-3">Date</th>
               <th className="px-4 py-3">Vendor</th>
               <th className="px-4 py-3">Cost</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Approval</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
             {visits.map((v) => (
               <tr key={v.id} className="table-row-hover border-b border-[var(--border)] last:border-0">
+                <td className="px-4 py-3 text-xs text-[var(--text-muted)]">{v.referenceNo ?? "—"}</td>
                 <td className="px-4 py-3 font-medium">
                   {v.property.name}
                   <p className="text-xs text-[var(--text-muted)]">{v.description}</p>
@@ -136,8 +152,39 @@ export default async function MaintenancePage() {
                     {v.status}
                   </span>
                 </td>
+                <td className="px-4 py-3">
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${APPROVAL_STYLES[v.approvalStatus]}`}>
+                    {v.approvalStatus.replace("_", " ")}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-3">
+                    {v.approvalStatus === "OPEN" && !isOwner && (
+                      <form action={submitForApproval.bind(null, v.id)}>
+                        <button type="submit" className="text-xs font-medium text-brand-700 hover:underline">
+                          Submit for approval
+                        </button>
+                      </form>
+                    )}
+                    {isOwner && (v.approvalStatus === "OPEN" || v.approvalStatus === "AWAITING_APPROVAL") && (
+                      <>
+                        <form action={setApprovalStatus.bind(null, v.id, "APPROVED")}>
+                          <button type="submit" className="text-xs font-medium text-emerald-700 hover:underline">
+                            Approve
+                          </button>
+                        </form>
+                        <form action={setApprovalStatus.bind(null, v.id, "REJECTED")}>
+                          <button type="submit" className="text-xs font-medium text-red-600 hover:underline">
+                            Reject
+                          </button>
+                        </form>
+                      </>
+                    )}
+                    {v.approvalStatus === "APPROVED" && v.vendorId && (
+                      <Link href={`/invoices?woId=${v.id}`} className="text-xs font-medium text-brand-700 hover:underline">
+                        Create invoice
+                      </Link>
+                    )}
                     {v.status === "SCHEDULED" && (
                       <form action={updateMaintenanceStatus.bind(null, v.id, "COMPLETED")}>
                         <button type="submit" className="text-xs font-medium text-brand-700 hover:underline">
@@ -152,7 +199,7 @@ export default async function MaintenancePage() {
             ))}
             {visits.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-[var(--text-muted)]">
+                <td colSpan={8} className="px-4 py-10 text-center text-[var(--text-muted)]">
                   No maintenance visits yet.
                 </td>
               </tr>

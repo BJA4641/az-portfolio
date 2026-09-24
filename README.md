@@ -43,6 +43,12 @@ Visit `http://localhost:3000` and log in with the email/password you set in
      market analysis page for US properties (get a key at
      [rentcast.io/api](https://www.rentcast.io/api); the free tier covers
      50 lookups/month). Leave unset to keep that button disabled.
+   - `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` — optional, enables the
+     Documents module (uploads on the Documents page and on leases,
+     invoices, and properties). Create a bucket named `attachments` in your
+     Supabase project's Storage tab, then copy the project URL and the
+     `service_role` key from Settings → API. Leave unset to keep uploads
+     disabled.
 4. Deploy. The build script (`prisma generate && prisma migrate deploy && next build`)
    applies migrations automatically on every deploy.
 5. Create your owner login once, from your local machine, pointed at the
