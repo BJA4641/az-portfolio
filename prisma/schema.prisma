@@ -177,6 +177,11 @@ model Comparable {
   observedDate DateTime?
   source      String?
   notes       String?
+  // Manually entered and RentCast auto-fetched comps are trusted by default.
+  // Comps found by the monthly web-search loop land here unverified and are
+  // excluded from benchmark averages/forecasts until approved, so a bad
+  // search hit can never quietly skew the numbers.
+  verified    Boolean   @default(true)
   createdAt   DateTime  @default(now())
 
   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)

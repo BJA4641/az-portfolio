@@ -44,6 +44,14 @@ export async function createComparable(propertyId: string, formData: FormData) {
   revalidatePath(`/properties/${propertyId}/market`);
 }
 
+export async function approveComparable(formData: FormData) {
+  await requireOwner();
+  const id = formData.get("id") as string;
+  const propertyId = formData.get("propertyId") as string;
+  await db.comparable.update({ where: { id }, data: { verified: true } });
+  revalidatePath(`/properties/${propertyId}/market`);
+}
+
 export async function deleteComparable(formData: FormData) {
   await requireOwner();
   const id = formData.get("id") as string;
