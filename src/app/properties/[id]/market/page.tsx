@@ -14,7 +14,7 @@ import {
   resolveAppreciationRate,
   resolveRentGrowthRate
 } from "@/lib/valuation";
-import { createComparable, deleteComparable, fetchLiveComps, updateForecastAssumptions } from "./actions";
+import { approveComparable, createComparable, deleteComparable, fetchLiveComps, updateForecastAssumptions } from "./actions";
 import { isRentcastConfigured } from "@/lib/rentcast";
 
 export const dynamic = "force-dynamic";
@@ -53,13 +53,19 @@ export default async function MarketAnalysisPage({ params }: { params: Promise<{
   const subjectRentUSD = activeLease ? toDisplayCurrency(activeLease.rentAmount, activeLease.currency) : null;
   const subjectRentPerSqm = subjectRentUSD != null && property.areaSqm ? subjectRentUSD / property.areaSqm : null;
 
-  const compsInUSD = comparables.map((c) => ({
-    salePrice: c.salePrice != null ? toDisplayCurrency(c.salePrice, c.currency) : null,
-    monthlyRent: c.monthlyRent != null ? toDisplayCurrency(c.monthlyRent, c.currency) : null,
-    areaSqm: c.areaSqm
-  }));
+  // Only verified comps (manually entered, or RentCast auto-fetch) drive the
+  // benchmark/forecast numbers - unverified ones (e.g. from the monthly web
+  // comps search) are shown below for review but never counted here.
+  const compsInUSD = comparables
+    .filter((c) => c.verified)
+    .map((c) => ({
+      salePrice: c.salePrice != null ? toDisplayCurrency(c.salePrice, c.currency) : null,
+      monthlyRent: c.monthlyRent != null ? toDisplayCurrency(c.monthlyRent, c.currency) : null,
+      areaSqm: c.areaSqm
+    }));
   const avgPricePerSqm = averageCompPricePerSqm(compsInUSD);
   const avgRentPerSqm = averageCompRentPerSqm(compsInUSD);
+  const unverifiedCount = comparables.filter((c) => !c.verified).length;
 
   const pricePremiumPct =
     subjectPricePerSqm != null && avgPricePerSqm != null
@@ -230,7 +236,15 @@ export default async function MarketAnalysisPage({ params }: { params: Promise<{
 
       <div className="card p-5">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[var(--text)]">Comparable properties</h2>
+          <div>
+            <h2 className="text-sm font-semibold text-[var(--text)]">Comparable properties</h2>
+            {unverifiedCount > 0 && (
+              <p className="text-xs font-medium text-orange-600">
+                {unverifiedCount} unreviewed comp{unverifiedCount === 1 ? "" : "s"} from the web search — not counted
+                in the numbers above until approved
+              </p>
+            )}
+          </div>
           {liveCompsDisabledReason ? (
             <button
               type="button"
@@ -274,6 +288,7 @@ export default async function MarketAnalysisPage({ params }: { params: Promise<{
               <th className="py-2">Sale price</th>
               <th className="py-2">Rent</th>
               <th className="py-2">Observed</th>
+              <th className="py-2">Status</th>
               <th className="py-2"></th>
             </tr>
           </thead>
@@ -291,14 +306,36 @@ export default async function MarketAnalysisPage({ params }: { params: Promise<{
                 <td className="py-2 tabular-nums">{c.salePrice ? formatMoney(c.salePrice, c.currency) : "—"}</td>
                 <td className="py-2 tabular-nums">{c.monthlyRent ? formatMoney(c.monthlyRent, c.currency) : "—"}</td>
                 <td className="py-2 text-[var(--text-muted)]">{c.observedDate ? formatDate(c.observedDate) : "—"}</td>
+                <td className="py-2">
+                  {c.verified ? (
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                      Verified
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">
+                      Unreviewed
+                    </span>
+                  )}
+                </td>
                 <td className="py-2 text-right">
-                  <DeleteButton action={deleteComparable} id={c.id} extraFields={{ propertyId: id }} />
+                  <div className="flex items-center justify-end gap-3">
+                    {!c.verified && (
+                      <form action={approveComparable}>
+                        <input type="hidden" name="id" value={c.id} />
+                        <input type="hidden" name="propertyId" value={id} />
+                        <button type="submit" className="text-xs font-medium text-emerald-700 hover:underline">
+                          Approve
+                        </button>
+                      </form>
+                    )}
+                    <DeleteButton action={deleteComparable} id={c.id} extraFields={{ propertyId: id }} />
+                  </div>
                 </td>
               </tr>
             ))}
             {comparables.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-6 text-center text-[var(--text-muted)]">
+                <td colSpan={7} className="py-6 text-center text-[var(--text-muted)]">
                   No comps logged yet.
                 </td>
               </tr>
