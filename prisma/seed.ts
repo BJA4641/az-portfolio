@@ -48,7 +48,8 @@ async function main() {
       purchasePrice: 420000,
       currentValue: 495000,
       currency: "EUR",
-      purchaseDate: new Date("2021-03-15")
+      purchaseDate: new Date("2021-03-15"),
+      areaSqm: 180
     }
   });
 
@@ -63,7 +64,8 @@ async function main() {
       purchasePrice: 260000,
       currentValue: 305000,
       currency: "EUR",
-      purchaseDate: new Date("2022-06-01")
+      purchaseDate: new Date("2022-06-01"),
+      areaSqm: 75
     }
   });
 
@@ -78,7 +80,8 @@ async function main() {
       purchasePrice: 810000,
       currentValue: 890000,
       currency: "USD",
-      purchaseDate: new Date("2020-11-10")
+      purchaseDate: new Date("2020-11-10"),
+      areaSqm: 140
     }
   });
 
@@ -93,7 +96,8 @@ async function main() {
       purchasePrice: 610000,
       currentValue: 655000,
       currency: "USD",
-      purchaseDate: new Date("2023-01-20")
+      purchaseDate: new Date("2023-01-20"),
+      areaSqm: 95
     }
   });
 
