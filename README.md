@@ -49,6 +49,12 @@ Visit `http://localhost:3000` and log in with the email/password you set in
      Supabase project's Storage tab, then copy the project URL and the
      `service_role` key from Settings → API. Leave unset to keep uploads
      disabled.
+   - `NEXT_PUBLIC_SENTRY_DSN` — optional, turns on error monitoring for
+     both the browser and the server (free tier at [sentry.io](https://sentry.io),
+     create a Next.js project there and copy its DSN). Leave unset to run
+     with no error monitoring. `SENTRY_ORG` / `SENTRY_PROJECT` /
+     `SENTRY_AUTH_TOKEN` are optional on top of that, only needed for
+     readable stack traces (source map upload at build time).
 4. Deploy. The build script (`prisma generate && prisma migrate deploy && next build`)
    applies migrations automatically on every deploy.
 5. Create your owner login once, from your local machine, pointed at the
